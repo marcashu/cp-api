@@ -13,8 +13,6 @@ public partial class User
 
     public string Email { get; set; }
 
-    public string  PaymentLink { get; set; }
-
     public DateTime LastLoggedOn { get; set; }
 
     public Guid CreatedBy { get; set; }
