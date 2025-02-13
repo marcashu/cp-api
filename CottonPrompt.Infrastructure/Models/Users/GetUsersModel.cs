@@ -4,6 +4,7 @@
         Guid Id, 
         string Name, 
         string Email, 
-        IEnumerable<string> Roles
+        IEnumerable<string> Roles,
+        string PaymentLink
     );
 }

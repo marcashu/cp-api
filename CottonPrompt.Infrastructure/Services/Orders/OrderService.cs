@@ -45,11 +45,40 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 await UpdateCustomerStatusAsync(id, OrderStatuses.ForReview);
                 await SendOrderProof(id, order.CustomerEmail);
+
+          
+                var artistEmail = await dbContext.Users.Where(u => u.Id == order.ArtistId).Select(u => u.Email).FirstOrDefaultAsync();
+          
+                if (!string.IsNullOrEmpty(artistEmail))
+                {
+                    await SendArtistEmailApprove(artistEmail);
+                }
             }
             catch (Exception)
             {
                 throw;
             }
+        }
+
+        private async Task SendArtistEmailApprove(string customerEmail)
+        {
+            var emailTemplates = "<!DOCTYPE html>\r\n<html>\r\n<head>\r\n    <meta charset=\"UTF-8\">\r\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n    <title>Work Approved</title>\r\n    <style>\r\n        body {\r\n            font-family: Arial, sans-serif;\r\n            background-color: #f4f4f4;\r\n            padding: 20px;\r\n        }\r\n        .email-container {\r\n            max-width: 600px;\r\n            margin: auto;\r\n            background: #ffffff;\r\n            padding: 20px;\r\n            border-radius: 8px;\r\n            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\r\n            text-align: center;\r\n        }\r\n        .button {\r\n            display: inline-block;\r\n            padding: 10px 20px;\r\n            margin-top: 20px;\r\n            background-color: #007bff;\r\n            color: white;\r\n            text-decoration: none;\r\n            border-radius: 5px;\r\n        }\r\n    </style>\r\n</head>\r\n<body>\r\n    <div class=\"email-container\">\r\n        <h2>Your Work Was Approved!</h2>\r\n        <p>A checker approved your design. You can check the details in the app.</p>\r\n    </div>\r\n</body>\r\n</html>";
+            var smtpConfig = config.GetSection("Smtp");
+            var client = new SmtpClient(smtpConfig["Host"], Convert.ToInt32(smtpConfig["Port"]))
+            {
+                Credentials = new NetworkCredential(smtpConfig["Username"], smtpConfig["Password"]),
+                EnableSsl = true
+            };
+            var from = new MailAddress(smtpConfig["SenderEmail"]!, smtpConfig["SenderName"]);
+            var to = new MailAddress(customerEmail);
+            var message = new MailMessage(from, to)
+            {
+                Body = emailTemplates,
+                BodyEncoding = Encoding.UTF8,
+                IsBodyHtml = true,
+                Subject = "Work Approved"
+            };
+            await client.SendMailAsync(message);
         }
 
         public async Task<CanDoModel> AssignArtistAsync(int id, Guid artistId)
@@ -181,6 +210,9 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     .Include(o => o.UserGroup)
                     .Where(o => true);
 
+
+                queryableOrders = queryableOrders.Where(o => !o.IsCoolDown);
+
                 if (priority != null)
                 {
                     queryableOrders = queryableOrders.Where(o => o.Priority == priority);
@@ -245,8 +277,11 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                 var queryableOrders = dbContext.Orders
                     .Include(ugu => ugu.UserGroup)
                     .Where(o => o.ArtistId == null
+                        && o.IsCoolDown == false
                         && userGroupIds.Contains(o.UserGroupId)
                         && (!o.OrderReports.Any(r => r.ResolvedBy == null)));
+
+
 
                 if (changeRequest)
                 {
@@ -280,7 +315,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.UserGroup)
-                    .Where(o => o.ArtistStatus == OrderStatuses.DesignSubmitted && o.CheckerId == null);
+                    .Where(o => o.ArtistStatus == OrderStatuses.DesignSubmitted && o.IsCoolDown == false && o.CheckerId == null);
 
                 if (priority != null)
                 {
@@ -360,6 +395,16 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 await dbContext.SaveChangesAsync();
 
+  
+                if (order.ArtistStatus == OrderStatuses.ForReupload)
+                {
+                    var checkerEmail = await dbContext.Users.Where(u => u.Id == order.CheckerId).Select(u => u.Email).FirstOrDefaultAsync();
+                    if (!string.IsNullOrEmpty(checkerEmail))
+                    {
+                        await SendCheckerEmailReupload(checkerEmail);
+                    }
+                }
+         
                 await UpdateArtistStatusAsync(id, OrderStatuses.DesignSubmitted, order.ArtistId.Value);
 
                 if (order.CheckerId is null) return;
@@ -370,6 +415,27 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             {
                 throw;
             }
+        }
+
+        private async Task SendCheckerEmailReupload(string customerEmail)
+        {
+            var emailTemplates = "<!DOCTYPE html>\r\n<html>\r\n<head>\r\n    <meta charset=\"UTF-8\">\r\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n    <title>Artist reuploaded work</title>\r\n    <style>\r\n        body {\r\n            font-family: Arial, sans-serif;\r\n            background-color: #f4f4f4;\r\n            padding: 20px;\r\n        }\r\n        .email-container {\r\n            max-width: 600px;\r\n            margin: auto;\r\n            background: #ffffff;\r\n            padding: 20px;\r\n            border-radius: 8px;\r\n            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\r\n            text-align: center;\r\n        }\r\n        .button {\r\n            display: inline-block;\r\n            padding: 10px 20px;\r\n            margin-top: 20px;\r\n            background-color: #007bff;\r\n            color: white;\r\n            text-decoration: none;\r\n            border-radius: 5px;\r\n        }\r\n    </style>\r\n</head>\r\n<body>\r\n    <div class=\"email-container\">\r\n        <h2>An artist reuploaded a new work</h2>\r\n        <p>An artist reuploaded a new work for the order, after it was requested. Please check the app for more details.</p>\r\n    </div>\r\n</body>\r\n</html>";
+            var smtpConfig = config.GetSection("Smtp");
+            var client = new SmtpClient(smtpConfig["Host"], Convert.ToInt32(smtpConfig["Port"]))
+            {
+                Credentials = new NetworkCredential(smtpConfig["Username"], smtpConfig["Password"]),
+                EnableSsl = true
+            };
+            var from = new MailAddress(smtpConfig["SenderEmail"]!, smtpConfig["SenderName"]);
+            var to = new MailAddress(customerEmail);
+            var message = new MailMessage(from, to)
+            {
+                Body = emailTemplates,
+                BodyEncoding = Encoding.UTF8,
+                IsBodyHtml = true,
+                Subject = "Reupload submitted"
+            };
+            await client.SendMailAsync(message);
         }
 
         public async Task UpdateAsync(Order order)
@@ -517,6 +583,13 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     await dbContext.SaveChangesAsync();
 
                     order.ChangeRequestOrderId = newOrder.Id;
+
+                    var artistEmail = await dbContext.Users.Where(u => u.Id == order.ArtistId).Select(u => u.Email).FirstOrDefaultAsync();
+
+                    if (!string.IsNullOrEmpty(artistEmail))
+                    {
+                        await SendArtistEmailChangeRequested(artistEmail);
+                    }
                 }
                 else
                 {
@@ -540,6 +613,13 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                         order.OrderImageReferences.Add(imageRef);
                     }
+
+
+                    var artistEmail = await dbContext.Users.Where(u => u.Id == order.ArtistId).Select(u => u.Email).FirstOrDefaultAsync();
+                    if (!string.IsNullOrEmpty(artistEmail))
+                    {
+                        await SendArtistEmailReupload(artistEmail);
+                    }
                 }
 
                 await dbContext.SaveChangesAsync();
@@ -549,6 +629,49 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                 throw;
             }
         }
+
+        private async Task SendArtistEmailReupload(string customerEmail)
+        {
+            var emailTemplates = "<!DOCTYPE html>\r\n<html>\r\n<head>\r\n    <meta charset=\"UTF-8\">\r\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n    <title>Reupload requested</title>\r\n    <style>\r\n        body {\r\n            font-family: Arial, sans-serif;\r\n            background-color: #f4f4f4;\r\n            padding: 20px;\r\n        }\r\n        .email-container {\r\n            max-width: 600px;\r\n            margin: auto;\r\n            background: #ffffff;\r\n            padding: 20px;\r\n            border-radius: 8px;\r\n            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\r\n            text-align: center;\r\n        }\r\n        .button {\r\n            display: inline-block;\r\n            padding: 10px 20px;\r\n            margin-top: 20px;\r\n            background-color: #007bff;\r\n            color: white;\r\n            text-decoration: none;\r\n            border-radius: 5px;\r\n        }\r\n    </style>\r\n</head>\r\n<body>\r\n    <div class=\"email-container\">\r\n        <h2>You need to reupload your work!</h2>\r\n        <p>After checking your work, a checker decided to request a reupload from you. Please check the details in the app.</p>\r\n    </div>\r\n</body>\r\n</html>";
+            var smtpConfig = config.GetSection("Smtp");
+            var client = new SmtpClient(smtpConfig["Host"], Convert.ToInt32(smtpConfig["Port"]))
+            {
+                Credentials = new NetworkCredential(smtpConfig["Username"], smtpConfig["Password"]),
+                EnableSsl = true
+            };
+            var from = new MailAddress(smtpConfig["SenderEmail"]!, smtpConfig["SenderName"]);
+            var to = new MailAddress(customerEmail);
+            var message = new MailMessage(from, to)
+            {
+                Body = emailTemplates,
+                BodyEncoding = Encoding.UTF8,
+                IsBodyHtml = true,
+                Subject = "Reupload requested"
+            };
+            await client.SendMailAsync(message);
+        }
+
+        private async Task SendArtistEmailChangeRequested(string customerEmail)
+        {
+            var emailTemplates = "<!DOCTYPE html>\r\n<html>\r\n<head>\r\n    <meta charset=\"UTF-8\">\r\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n    <title>Change requested</title>\r\n    <style>\r\n        body {\r\n            font-family: Arial, sans-serif;\r\n            background-color: #f4f4f4;\r\n            padding: 20px;\r\n        }\r\n        .email-container {\r\n            max-width: 600px;\r\n            margin: auto;\r\n            background: #ffffff;\r\n            padding: 20px;\r\n            border-radius: 8px;\r\n            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\r\n            text-align: center;\r\n        }\r\n        .button {\r\n            display: inline-block;\r\n            padding: 10px 20px;\r\n            margin-top: 20px;\r\n            background-color: #007bff;\r\n            color: white;\r\n            text-decoration: none;\r\n            border-radius: 5px;\r\n        }\r\n    </style>\r\n</head>\r\n<body>\r\n    <div class=\"email-container\">\r\n        <h2>A customer requested changes on your work!</h2>\r\n        <p>After reviewing your work, a customer requested changes from you. Please check the details in the app.</p>\r\n    </div>\r\n</body>\r\n</html>";
+            var smtpConfig = config.GetSection("Smtp");
+            var client = new SmtpClient(smtpConfig["Host"], Convert.ToInt32(smtpConfig["Port"]))
+            {
+                Credentials = new NetworkCredential(smtpConfig["Username"], smtpConfig["Password"]),
+                EnableSsl = true
+            };
+            var from = new MailAddress(smtpConfig["SenderEmail"]!, smtpConfig["SenderName"]);
+            var to = new MailAddress(customerEmail);
+            var message = new MailMessage(from, to)
+            {
+                Body = emailTemplates,
+                BodyEncoding = Encoding.UTF8,
+                IsBodyHtml = true,
+                Subject = "Changes requested"
+            };
+            await client.SendMailAsync(message);
+        }
+
 
         public async Task<IEnumerable<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null)
         {

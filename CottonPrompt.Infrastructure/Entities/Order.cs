@@ -39,6 +39,8 @@ public partial class Order
 
     public int? ChangeRequestOrderId { get; set; }
 
+    public bool IsCoolDown { get; set; }
+
     public DateTime? CompletedOn { get; set; }
 
     public DateTime? AcceptedOn { get; set; }

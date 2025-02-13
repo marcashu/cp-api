@@ -97,7 +97,7 @@ namespace CottonPrompt.Infrastructure.Services.Users
 
 				if (user == null)
 				{
-                    return new GetUsersModel(id, name, email, []);
+                    return new GetUsersModel(id, name, email, [], "");
                 }
 				else
 				{
@@ -199,5 +199,21 @@ namespace CottonPrompt.Infrastructure.Services.Users
 				throw;
 			}
         }
+
+		public async Task AddPaymentLinkAsync(Guid userId, String paymentLink)
+		{
+			try
+			{
+				var user = await dbContext.Users.SingleOrDefaultAsync(u => u.Id == userId);
+				if (user == null) throw new Exception("User not found");
+
+				user.PaymentLink = paymentLink;
+				await dbContext.SaveChangesAsync();
+			}
+			catch (Exception)
+			{
+				throw;
+			}
+		}
     }
 }

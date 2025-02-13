@@ -99,6 +99,19 @@ namespace CottonPrompt.Api.Controllers
             var result = await userService.GetNotMemberOfGroupAsync(userGroupId);
             return Ok(result);
         }
+
+        [AllowAnonymous]
+        [HttpPost("paymentLink")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+
+        public async Task<IActionResult> AddPaymentLinkAsync([FromBody] PaymentLinkRequest request)
+        {
+            await userService.AddPaymentLinkAsync(
+                request.UserId,
+                request.PaymentLink);
+
+            return NoContent();
+        }
     }
 }
     

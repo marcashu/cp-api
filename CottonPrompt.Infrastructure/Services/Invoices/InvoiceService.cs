@@ -16,6 +16,16 @@ namespace CottonPrompt.Infrastructure.Services.Invoices
                     .Where(i => userId == null || i.UserId == userId)
                     .OrderByDescending(i => i.StartDate).ThenBy(i => i.User.Name)
                     .ToListAsync();
+
+      
+                var users = await dbContext.Users.ToListAsync();
+
+                foreach (var invoice in invoices)
+                {
+                    var user = users.Single(u => u.Id == invoice.UserId);
+                    invoice.User.PaymentLink = user.PaymentLink;
+                }
+
                 var result = invoices.AsGetInvoicesModel();
                 return result;
             }

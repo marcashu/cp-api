@@ -8,7 +8,7 @@ namespace CottonPrompt.Infrastructure.Extensions
     {
         internal static GetUsersModel AsModel(this GraphUser graphUser)
         {
-            var result = new GetUsersModel(Guid.Parse(graphUser.Id ?? string.Empty), graphUser.DisplayName ?? string.Empty, graphUser.UserPrincipalName ?? string.Empty, Enumerable.Empty<string>());
+            var result = new GetUsersModel(Guid.Parse(graphUser.Id ?? string.Empty), graphUser.DisplayName ?? string.Empty, graphUser.UserPrincipalName ?? string.Empty, Enumerable.Empty<string>(), "");
             return result;
         }
 
@@ -20,7 +20,7 @@ namespace CottonPrompt.Infrastructure.Extensions
         
         internal static GetUsersModel AsModel(this UserEntity entity)
         {
-            var result = new GetUsersModel(entity.Id, entity.Name, entity.Email, entity.UserRoles.Select(ur => ur.Role));
+            var result = new GetUsersModel(entity.Id, entity.Name, entity.Email, entity.UserRoles.Select(ur => ur.Role), entity.PaymentLink);
             return result;
         }
 

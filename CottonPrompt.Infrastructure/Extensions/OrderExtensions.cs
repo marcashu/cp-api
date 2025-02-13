@@ -8,7 +8,7 @@ namespace CottonPrompt.Infrastructure.Extensions
     {
         internal static GetOrdersModel AsGetOrdersModel(this Order entity, DateTime? date = null)
         {
-            var result = new GetOrdersModel(entity.Id, entity.OrderNumber, entity.Priority, date ?? entity.CreatedOn, entity.ArtistStatus, entity.CheckerStatus, entity.ArtistId, entity.Artist?.Name, entity.CheckerId, entity.Checker?.Name, entity.CustomerStatus, entity.CustomerEmail, entity.OriginalOrderId, entity.ChangeRequestOrderId, entity.OrderReports.FirstOrDefault()?.Reason, entity.AcceptedOn, entity.ChangeRequestedOn, entity.ReportedOn, entity.OrderReports.FirstOrDefault()?.ReportedByNavigation.Name, entity.UserGroupId, entity.UserGroup.Name, entity.OrderReports.FirstOrDefault()?.IsDesignSubmitted, entity.OrderReports.FirstOrDefault()?.IsRedraw);
+            var result = new GetOrdersModel(entity.Id, entity.OrderNumber, entity.Priority, date ?? entity.CreatedOn, entity.ArtistStatus, entity.CheckerStatus, entity.ArtistId, entity.Artist?.Name, entity.CheckerId, entity.Checker?.Name, entity.CustomerStatus, entity.CustomerEmail, entity.OriginalOrderId, entity.ChangeRequestOrderId, entity.OrderReports.FirstOrDefault()?.Reason, entity.AcceptedOn, entity.ChangeRequestedOn, entity.ReportedOn, entity.OrderReports.FirstOrDefault()?.ReportedByNavigation.Name, entity.UserGroupId, entity.UserGroup.Name, entity.OrderReports.FirstOrDefault()?.IsDesignSubmitted, entity.OrderReports.FirstOrDefault()?.IsRedraw, entity.IsCoolDown, entity.UpdatedOn);
             return result;
         }
 
