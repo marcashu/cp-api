@@ -1,8 +1,8 @@
 ﻿namespace CottonPrompt.Infrastructure.Models.Orders
 {
     public record GetOrdersModel(
-        int Id, 
-        string OrderNumber, 
+        int Id,
+        string OrderNumber,
         bool Priority,
         DateTime Date,
         string ArtistStatus,
@@ -15,6 +15,7 @@
         string CustomerName,
         int? OriginalOrderId,
         int? ChangeRequestOrderId,
+        string? ChangeRequestArtistName,
         string? Reason,
         DateTime? AcceptedOn,
         DateTime? ChangeRequestedOn,
@@ -25,6 +26,7 @@
         bool? IsReportDesignSubmitted,
         bool? IsReportRedraw,
         bool IsCoolDown,
-        DateTime? UpdatedOn
+        DateTime? UpdatedOn,
+        DateTime? CheckerRemovedOn
     );
 }

@@ -7,7 +7,7 @@ namespace CottonPrompt.Infrastructure.Extensions
     {
         public static RatesModel AsRatesModel(this Setting entity)
         {
-            var result = new RatesModel(entity.QualityControlRate, entity.ChangeRequestRate);
+            var result = new RatesModel(entity.QualityControlRate, entity.ChangeRequestRate, entity.ConceptAuthorRate);
             return result;
         }
     }

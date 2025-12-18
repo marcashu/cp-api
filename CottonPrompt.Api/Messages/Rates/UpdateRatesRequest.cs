@@ -11,6 +11,9 @@ namespace CottonPrompt.Api.Messages.Rates
         public decimal ChangeRequestRate { get; set; }
 
         [Required]
+        public decimal ConceptAuthorRate { get; set; }
+
+        [Required]
         public Guid UpdatedBy { get; set; }
     }
 }

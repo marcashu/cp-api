@@ -21,7 +21,7 @@ namespace CottonPrompt.Infrastructure.Services.Settings
             }
         }
 
-        public async Task UpdateAsync(decimal qualityControlRate, decimal changeRequestRate, Guid updatedBy)
+        public async Task UpdateAsync(decimal qualityControlRate, decimal changeRequestRate, decimal conceptAuthorRate, Guid updatedBy)
         {
             try
             {
@@ -30,6 +30,7 @@ namespace CottonPrompt.Infrastructure.Services.Settings
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(r => r.QualityControlRate, qualityControlRate)
                         .SetProperty(r => r.ChangeRequestRate, changeRequestRate)
+                        .SetProperty(r => r.ConceptAuthorRate, conceptAuthorRate)
                         .SetProperty(r => r.UpdatedBy, updatedBy)
                         .SetProperty(r => r.UpdatedOn, DateTime.UtcNow));
             }

@@ -30,6 +30,8 @@ namespace CottonPrompt.Api.Messages.Orders
 
         public IEnumerable<ImageReferenceRequest>? ImageReferences { get; set; }
 
+        public Guid? AuthorId { get; set; }
+
         [Required]
         public Guid CreatedBy { get; set; }
     }

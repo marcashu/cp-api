@@ -6,6 +6,6 @@ namespace CottonPrompt.Infrastructure.Services.Settings
     {
         Task<RatesModel> GetRatesAsync();
 
-        Task UpdateAsync(decimal qualityControlRate, decimal changeRequestRate, Guid updatedBy);
+        Task UpdateAsync(decimal qualityControlRate, decimal changeRequestRate, decimal conceptAuthorRate, Guid updatedBy);
     }
 }

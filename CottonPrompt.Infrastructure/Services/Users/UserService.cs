@@ -19,15 +19,7 @@ namespace CottonPrompt.Infrastructure.Services.Users
 				var rolesToRemove = userRoles.Except(roles);
 				var rolesToAdd = roles.Except(userRoles);
 
-				if (rolesToRemove.Contains(UserRoles.Checker.GetDisplayName()))
-                {
-                    var hasPendingOrdersAsChecker = await dbContext.Orders.AnyAsync(o => o.CheckerId == id && o.CheckerStatus != OrderStatuses.Approved);
-
-                    if (hasPendingOrdersAsChecker)
-                    {
-                        return new CanDoModel(false, "Can't remove the Checker role because the user still has orders to complete as Checker.");
-                    }
-                }
+				// Checker role can now be removed - orders will be unassigned automatically
 
                 if (rolesToRemove.Contains(UserRoles.Artist.GetDisplayName()))
                 {
@@ -125,6 +117,23 @@ namespace CottonPrompt.Infrastructure.Services.Users
         {
 			try
 			{
+				// Check if checker role is being removed
+				var currentRoles = await dbContext.UserRoles.Where(ur => ur.UserId == id).Select(ur => ur.Role).ToListAsync();
+				var isRemovingCheckerRole = currentRoles.Contains(UserRoles.Checker.GetDisplayName()) && !roles.Contains(UserRoles.Checker.GetDisplayName());
+
+				// Unassign checker from all orders if checker role is being removed
+				if (isRemovingCheckerRole)
+				{
+					await dbContext.Orders
+						.Where(o => o.CheckerId == id && o.CheckerStatus != OrderStatuses.Approved)
+						.ExecuteUpdateAsync(setters => setters
+							.SetProperty(o => o.CheckerId, (Guid?)null)
+							.SetProperty(o => o.CheckerStatus, string.Empty)
+							.SetProperty(o => o.CheckerRemovedOn, DateTime.UtcNow)
+							.SetProperty(o => o.UpdatedBy, updatedBy)
+							.SetProperty(o => o.UpdatedOn, DateTime.UtcNow));
+				}
+
 				await dbContext.UserRoles.Where(ur => ur.UserId == id).ExecuteDeleteAsync();
 
 				foreach (var role in roles)

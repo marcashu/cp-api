@@ -7,6 +7,8 @@
         IEnumerable<Guid> Checkers,
         IEnumerable<string> Customers,
         IEnumerable<string> Status,
-        IEnumerable<int> UserGroups
+        IEnumerable<int> UserGroups,
+        int Page = 1,
+        int PageSize = 10
     );
 }

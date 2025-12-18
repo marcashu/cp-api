@@ -8,7 +8,7 @@ namespace CottonPrompt.Infrastructure.Extensions
     {
         internal static GetOrdersModel AsGetOrdersModel(this Order entity, DateTime? date = null)
         {
-            var result = new GetOrdersModel(entity.Id, entity.OrderNumber, entity.Priority, date ?? entity.CreatedOn, entity.ArtistStatus, entity.CheckerStatus, entity.ArtistId, entity.Artist?.Name, entity.CheckerId, entity.Checker?.Name, entity.CustomerStatus, entity.CustomerEmail, entity.OriginalOrderId, entity.ChangeRequestOrderId, entity.OrderReports.FirstOrDefault()?.Reason, entity.AcceptedOn, entity.ChangeRequestedOn, entity.ReportedOn, entity.OrderReports.FirstOrDefault()?.ReportedByNavigation.Name, entity.UserGroupId, entity.UserGroup.Name, entity.OrderReports.FirstOrDefault()?.IsDesignSubmitted, entity.OrderReports.FirstOrDefault()?.IsRedraw, entity.IsCoolDown, entity.UpdatedOn);
+            var result = new GetOrdersModel(entity.Id, entity.OrderNumber, entity.Priority, date ?? entity.CreatedOn, entity.ArtistStatus, entity.CheckerStatus, entity.ArtistId, entity.Artist?.Name, entity.CheckerId, entity.Checker?.Name, entity.CustomerStatus, entity.CustomerEmail, entity.OriginalOrderId, entity.ChangeRequestOrderId, entity.ChangeRequestOrder?.Artist?.Name, entity.OrderReports.FirstOrDefault()?.Reason, entity.AcceptedOn, entity.ChangeRequestedOn, entity.ReportedOn, entity.OrderReports.FirstOrDefault()?.ReportedByNavigation.Name, entity.UserGroupId, entity.UserGroup.Name, entity.OrderReports.FirstOrDefault()?.IsDesignSubmitted, entity.OrderReports.FirstOrDefault()?.IsRedraw, entity.IsCoolDown, entity.UpdatedOn, entity.CheckerRemovedOn);
             return result;
         }
 
@@ -42,11 +42,11 @@ namespace CottonPrompt.Infrastructure.Extensions
             return result;
         }
 
-        internal static GetOrderModel AsGetOrderModel(this Order entity, IEnumerable<DesignModel> designs)
+        internal static GetOrderModel AsGetOrderModel(this Order entity, IEnumerable<DesignModel> designs, string? authorName = null)
         {
             var currentDesign = ((entity.OriginalOrderId == null && designs.Any()) || (entity.OriginalOrderId != null && designs.Count() > 1)) ? designs.Last() : null;
             var previousDesigns = designs.Where(d => currentDesign == null || d.Id != currentDesign.Id);
-            var result = new GetOrderModel(entity.Id, entity.OrderNumber, entity.Priority, entity.Concept, entity.PrintColor.AsModel(), entity.DesignBracket.AsModel(), entity.OutputSize.AsModel(), entity.UserGroupId, entity.CustomerEmail, entity.OrderImageReferences.AsModel(), currentDesign, previousDesigns, entity.ArtistStatus, entity.CheckerStatus, entity.CustomerStatus, entity.ArtistId, entity.CheckerId, entity.UserGroup.Name, entity.OriginalOrderId.HasValue);
+            var result = new GetOrderModel(entity.Id, entity.OrderNumber, entity.Priority, entity.Concept, entity.PrintColor.AsModel(), entity.DesignBracket.AsModel(), entity.OutputSize.AsModel(), entity.UserGroupId, entity.CustomerEmail, entity.OrderImageReferences.AsModel(), currentDesign, previousDesigns, entity.ArtistStatus, entity.CheckerStatus, entity.CustomerStatus, entity.ArtistId, entity.CheckerId, entity.CreatedBy, authorName, entity.UserGroup.Name, entity.OriginalOrderId.HasValue, entity.CheckerRemovedOn);
             return result;
         }
 

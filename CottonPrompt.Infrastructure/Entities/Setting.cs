@@ -13,7 +13,11 @@ public partial class Setting
 
     public decimal ChangeRequestRate { get; set; }
 
+    public decimal ConceptAuthorRate { get; set; }
+
     public int ChangeRequestArtistsGroupId { get; set; }
+
+    public int ConceptAuthorGroupId { get; set; }
 
     public int TrainingGroupArtistsGroupId { get; set; }
 

@@ -11,6 +11,8 @@ public partial class UserGroup
 
     public string Name { get; set; }
 
+    public bool IsDeleted { get; set; }
+
     public Guid CreatedBy { get; set; }
 
     public DateTime CreatedOn { get; set; }
