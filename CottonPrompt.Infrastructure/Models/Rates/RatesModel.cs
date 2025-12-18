@@ -2,6 +2,7 @@
 {
     public record RatesModel(
         decimal QualityControlRate,
-        decimal ChangeRequestRate
+        decimal ChangeRequestRate,
+        decimal ConceptAuthorRate
     );
 }

@@ -26,6 +26,14 @@ namespace CottonPrompt.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("concept-authors")]
+        [ProducesResponseType<GetUserGroupModel>((int)HttpStatusCode.OK)]
+        public async Task<IActionResult> GetConceptAuthorsAsync()
+        {
+            var result = await userGroupService.GetConceptAuthorsAsync();
+            return Ok(result);
+        }
+
         [HttpGet("{id}")]
         [ProducesResponseType<GetUserGroupModel>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetByIdAsync([FromRoute] int id)
@@ -58,6 +66,13 @@ namespace CottonPrompt.Api.Controllers
             return NoContent();
         }
 
+        [HttpDelete("{id}")]
+        [ProducesResponseType((int)HttpStatusCode.NoContent)]
+        public async Task<IActionResult> DeleteAsync([FromRoute] int id)
+        {
+            await userGroupService.DeleteAsync(id);
+            return NoContent();
+        }
     }
 }
     

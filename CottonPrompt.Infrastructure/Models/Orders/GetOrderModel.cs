@@ -23,7 +23,10 @@ namespace CottonPrompt.Infrastructure.Models.Orders
         string CustomerStatus,
         Guid? ArtistId,
         Guid? CheckerId,
+        Guid? AuthorId,
+        string? AuthorName,
         string UserGroup,
-        bool IsChangeRequest
+        bool IsChangeRequest,
+        DateTime? CheckerRemovedOn
     );
 }

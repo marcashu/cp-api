@@ -18,6 +18,7 @@ namespace CottonPrompt.Api.Extensions
                 OutputSizeId = request.OutputSizeId,
                 CustomerEmail = request.CustomerEmail,
                 OrderImageReferences = request.ImageReferences?.AsEntity(request.CreatedBy).ToList(),
+                AuthorId = request.AuthorId,
                 CreatedBy = request.CreatedBy,
                 UserGroupId = request.UserGroupId,
             };
@@ -37,6 +38,7 @@ namespace CottonPrompt.Api.Extensions
                 OutputSizeId = request.OutputSizeId,
                 CustomerEmail = request.CustomerEmail,
                 OrderImageReferences = request.ImageReferences?.AsEntity(request.UpdatedBy, request.Id).ToList(),
+                AuthorId = request.AuthorId,
                 UpdatedBy = request.UpdatedBy,
                 UpdatedOn = DateTime.UtcNow,
                 UserGroupId = request.UserGroupId,
@@ -73,7 +75,7 @@ namespace CottonPrompt.Api.Extensions
             var customers = request.Customers?.Split(',') ?? [];
             var status = request.Status?.Split(',') ?? [];
             var userGroups = request.UserGroups?.Split(',').Select(s => Convert.ToInt32(s)) ?? [];
-            var result = new OrderFiltersModel(orderNumbers, priorities, artists, checkers, customers, status, userGroups);
+            var result = new OrderFiltersModel(orderNumbers, priorities, artists, checkers, customers, status, userGroups, request.Page, request.PageSize);
             return result;
         }
     }

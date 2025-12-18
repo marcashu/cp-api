@@ -22,7 +22,7 @@ namespace CottonPrompt.Api.Controllers
         [ProducesResponseType((int)HttpStatusCode.NoContent)]
         public async Task<IActionResult> UpdateAsync([FromBody] UpdateRatesRequest request)
         {
-            await settingsService.UpdateAsync(request.QualityControlRate, request.ChangeRequestRate, request.UpdatedBy);
+            await settingsService.UpdateAsync(request.QualityControlRate, request.ChangeRequestRate, request.ConceptAuthorRate, request.UpdatedBy);
             return NoContent();
         }
     }

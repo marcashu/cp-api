@@ -51,6 +51,10 @@ public partial class Order
 
     public DateTime? ReportedOn { get; set; }
 
+    public DateTime? CheckerRemovedOn { get; set; }
+
+    public Guid? AuthorId { get; set; }
+
     public Guid CreatedBy { get; set; }
 
     public DateTime CreatedOn { get; set; }
@@ -60,6 +64,8 @@ public partial class Order
     public DateTime? UpdatedOn { get; set; }
 
     public virtual User Artist { get; set; }
+
+    public virtual User Author { get; set; }
 
     public virtual Order ChangeRequestOrder { get; set; }
 

@@ -17,7 +17,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 {
     public class OrderService(CottonPromptContext dbContext, BlobServiceClient blobServiceClient, IConfiguration config) : IOrderService
     {
-        public async Task ApproveAsync(int id)
+        public async Task ApproveAsync(int id, Guid? approvedBy = null, bool isAdminApproval = false)
         {
             try
             {
@@ -26,9 +26,17 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     .Include(o => o.DesignBracket)
                     .SingleOrDefaultAsync(o => o.Id == id);
 
-                if (order is null || order.CheckerId is null || order.ArtistId is null) return;
+                if (order is null || order.ArtistId is null) return;
 
-                await UpdateCheckerStatusAsync(id, OrderStatuses.Approved, order.CheckerId.Value);
+                // For admin approval, allow approval even if checker is removed or not assigned
+                if (!isAdminApproval && order.CheckerId is null) return;
+
+                // Update checker status - use approvedBy for admin, or existing checker
+                var checkerId = isAdminApproval && approvedBy.HasValue ? approvedBy.Value : order.CheckerId;
+                if (checkerId.HasValue)
+                {
+                    await UpdateCheckerStatusAsync(id, OrderStatuses.Approved, checkerId.Value);
+                }
 
                 if (order.OriginalOrderId is null)
                 {
@@ -40,15 +48,24 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                 {
                     order.CompletedOn = DateTime.UtcNow;
                     await dbContext.SaveChangesAsync();
-                    await RecordInvoice(order);
+
+                    // Only record checker invoice if NOT an admin approval (admin doesn't get paid for checking)
+                    if (isAdminApproval)
+                    {
+                        // Record invoice for artist only (not for admin checker)
+                        await RecordArtistInvoiceOnly(order);
+                    }
+                    else
+                    {
+                        await RecordInvoice(order);
+                    }
                 }
 
                 await UpdateCustomerStatusAsync(id, OrderStatuses.ForReview);
                 await SendOrderProof(id, order.CustomerEmail);
 
-          
                 var artistEmail = await dbContext.Users.Where(u => u.Id == order.ArtistId).Select(u => u.Email).FirstOrDefaultAsync();
-          
+
                 if (!string.IsNullOrEmpty(artistEmail))
                 {
                     await SendArtistEmailApprove(artistEmail);
@@ -58,6 +75,47 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             {
                 throw;
             }
+        }
+
+        private async Task RecordArtistInvoiceOnly(Order order)
+        {
+            // Record invoice for artist only, skipping checker invoice (for admin approvals)
+            if (order.CompletedOn is null || order.ArtistId is null) return;
+
+            var phTimeOffset = 8;
+            var completedOn = order.CompletedOn.Value.AddHours(phTimeOffset);
+            var daysOffset = completedOn.DayOfWeek != DayOfWeek.Sunday ? (int)completedOn.DayOfWeek : 7;
+            var startDate = completedOn.AddDays((daysOffset - (int)DayOfWeek.Monday) * -1).Date + new TimeSpan(0, 0, 0);
+            var endDate = completedOn.AddDays(7 - daysOffset).Date + new TimeSpan(23, 59, 59);
+            var rates = await dbContext.Settings.FirstAsync();
+
+            var artistInvoice = await dbContext.Invoices
+                .Include(i => i.InvoiceSections)
+                .SingleOrDefaultAsync(i => i.StartDate == startDate && i.UserId == order.ArtistId);
+
+            if (order.OriginalOrderId is null)
+            {
+                // record artist invoice
+                await RecordInvoice(artistInvoice, order.ArtistId.Value, order.DesignBracket.Name, order.DesignBracket.Value, startDate, endDate, order.Id, order.OrderNumber);
+            }
+            else
+            {
+                // record change request artist invoice
+                var changeRequestSectionName = "Change Request";
+                await RecordInvoice(artistInvoice, order.ArtistId.Value, changeRequestSectionName, rates.ChangeRequestRate, startDate, endDate, order.Id, order.OrderNumber);
+            }
+
+            // record author invoice (if author is assigned)
+            if (order.AuthorId is not null)
+            {
+                var authorInvoice = await dbContext.Invoices
+                    .Include(i => i.InvoiceSections)
+                    .SingleOrDefaultAsync(i => i.StartDate == startDate && i.UserId == order.AuthorId);
+                var authorSectionName = "Concept Author";
+                await RecordInvoice(authorInvoice, order.AuthorId.Value, authorSectionName, rates.ConceptAuthorRate, startDate, endDate, order.Id, order.OrderNumber);
+            }
+
+            await dbContext.SaveChangesAsync();
         }
 
         private async Task SendArtistEmailApprove(string customerEmail)
@@ -85,25 +143,28 @@ namespace CottonPrompt.Infrastructure.Services.Orders
         {
             try
             {
-                var order = await dbContext.Orders.FindAsync(id); 
-                
-                if (order is null)
-                {
-                    return new CanDoModel(false, "The order is not found");
-                }
-
-                if (order.ArtistId.HasValue)
-                {
-                    return new CanDoModel(false, "The order is already claimed by another Artist");
-                }
-                    
-                await dbContext.Orders
-                    .Where(o => o.Id == id)
+                // Use atomic conditional update to prevent race conditions
+                // Only update if ArtistId is currently null - this is a single atomic operation
+                var rowsAffected = await dbContext.Orders
+                    .Where(o => o.Id == id && o.ArtistId == null)
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(o => o.ArtistId, artistId)
                         .SetProperty(o => o.ArtistStatus, OrderStatuses.Claimed)
                         .SetProperty(o => o.UpdatedBy, artistId)
                         .SetProperty(o => o.UpdatedOn, DateTime.UtcNow));
+
+                // If no rows were updated, either the order doesn't exist or was already claimed
+                if (rowsAffected == 0)
+                {
+                    var order = await dbContext.Orders.FindAsync(id);
+
+                    if (order is null)
+                    {
+                        return new CanDoModel(false, "The order is not found");
+                    }
+
+                    return new CanDoModel(false, "The order is already claimed by another Artist");
+                }
 
                 await CreateOrderHistory(id, OrderStatuses.Claimed, artistId);
 
@@ -120,6 +181,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
         {
             try
             {
+                // First, check if designs exist to determine the status
                 var order = await dbContext.Orders
                     .Include(o => o.OrderDesigns)
                     .SingleOrDefaultAsync(o => o.Id == id);
@@ -129,19 +191,23 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     return new CanDoModel(false, "The order is not found");
                 }
 
-                if (order.CheckerId.HasValue)
+                var status = order.OrderDesigns.Count > 0 ? OrderStatuses.ForReview : OrderStatuses.Claimed;
+
+                // Use atomic conditional update to prevent race conditions
+                // Only update if CheckerId is currently null
+                var rowsAffected = await dbContext.Orders
+                    .Where(o => o.Id == id && o.CheckerId == null)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(o => o.CheckerId, checkerId)
+                        .SetProperty(o => o.CheckerStatus, status)
+                        .SetProperty(o => o.UpdatedBy, checkerId)
+                        .SetProperty(o => o.UpdatedOn, DateTime.UtcNow));
+
+                // If no rows were updated, the order was already claimed by another checker
+                if (rowsAffected == 0)
                 {
                     return new CanDoModel(false, "The order is already claimed by another Checker");
                 }
-
-                var status = order.OrderDesigns.Count > 0 ? OrderStatuses.ForReview : OrderStatuses.Claimed;
-
-                order.CheckerId = checkerId;
-                order.CheckerStatus = status;
-                order.UpdatedBy = checkerId;
-                order.UpdatedOn = DateTime.UtcNow;
-
-                await dbContext.SaveChangesAsync();
 
                 await CreateOrderHistory(id, status, checkerId);
 
@@ -363,7 +429,17 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     designs.Add(design);
                 }
 
-                var result = order.AsGetOrderModel(designs);
+                // Get author name from AuthorId
+                string? authorName = null;
+                if (order.AuthorId.HasValue)
+                {
+                    authorName = await dbContext.Users
+                        .Where(u => u.Id == order.AuthorId.Value)
+                        .Select(u => u.Name)
+                        .FirstOrDefaultAsync();
+                }
+
+                var result = order.AsGetOrderModel(designs, authorName);
 
                 return result;
             }
@@ -453,6 +529,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                 currentOrder.DesignBracketId = order.DesignBracketId;
                 currentOrder.OutputSizeId = order.OutputSizeId;
                 currentOrder.CustomerEmail = order.CustomerEmail;
+                currentOrder.AuthorId = order.AuthorId;
                 currentOrder.UpdatedBy = order.UpdatedBy;
                 currentOrder.UpdatedOn = order.UpdatedOn;
                 currentOrder.UserGroupId = order.UserGroupId;
@@ -673,24 +750,35 @@ namespace CottonPrompt.Infrastructure.Services.Orders
         }
 
 
-        public async Task<IEnumerable<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null)
+        public async Task<PaginatedResult<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null)
         {
             try
             {
+                var page = filters?.Page ?? 1;
+                var pageSize = filters?.PageSize ?? 10;
+
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.Artist)
                     .Include(o => o.Checker)
                     .Include(o => o.UserGroup)
-                    .Where(o => (o.CustomerStatus == null 
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
+                    .Where(o => (o.CustomerStatus == null
                     || o.CustomerStatus == OrderStatuses.ForReview
                     || (o.OriginalOrderId != null && o.CustomerStatus == OrderStatuses.ChangeRequested)) // multi-CR'ed orders
-                    && !o.OrderReports.Any(r => r.ResolvedBy == null));  // exclude reported orders 
+                    && !o.OrderReports.Any(r => r.ResolvedBy == null));  // exclude reported orders
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var orders = await queryableOrders.OrderByDescending(o => o.Priority).ThenBy(o => o.CreatedOn).ToListAsync();
-                var result = orders.AsGetOrdersModel();
-                return result;
+                var totalCount = await queryableOrders.CountAsync();
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.Priority)
+                    .ThenBy(o => o.CreatedOn)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var items = orders.AsGetOrdersModel();
+                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
             }
             catch (Exception)
             {
@@ -698,22 +786,32 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             }
         }
 
-        public async Task<IEnumerable<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null)
+        public async Task<PaginatedResult<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null)
         {
             try
             {
+                var page = filters?.Page ?? 1;
+                var pageSize = filters?.PageSize ?? 10;
+
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.Artist)
                     .Include(o => o.Checker)
                     .Include(o => o.UserGroup)
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
                     .Where(o => o.CustomerStatus == OrderStatuses.Accepted
                         && o.SentForPrintingOn == null);
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var orders = await queryableOrders.OrderByDescending(o => o.AcceptedOn).ToListAsync();
-                var result = orders.AsGetCompletedOrdersModel();
-                return result;
+                var totalCount = await queryableOrders.CountAsync();
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.AcceptedOn)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var items = orders.AsGetCompletedOrdersModel();
+                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
             }
             catch (Exception)
             {
@@ -721,14 +819,17 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             }
         }
 
-        public async Task<IEnumerable<GetOrdersModel>> GetRejectedAsync(OrderFiltersModel? filters = null)
+        public async Task<PaginatedResult<GetOrdersModel>> GetRejectedAsync(OrderFiltersModel? filters = null)
         {
             try
             {
+                var page = filters?.Page ?? 1;
+                var pageSize = filters?.PageSize ?? 10;
+
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.Artist)
                     .Include(o => o.Checker)
-                    .Include(o => o.ChangeRequestOrder)
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
                     .Include(o => o.UserGroup)
                     .Where(o => o.ArtistStatus == OrderStatuses.Completed
                     && o.CustomerStatus == OrderStatuses.ChangeRequested
@@ -737,9 +838,15 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var orders = await queryableOrders.OrderByDescending(o => o.ChangeRequestedOn).ToListAsync();
-                var result = orders.AsGetRejectedOrdersModel();
-                return result;
+                var totalCount = await queryableOrders.CountAsync();
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.ChangeRequestedOn)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var items = orders.AsGetRejectedOrdersModel();
+                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
             }
             catch (Exception)
             {
@@ -747,10 +854,13 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             }
         }
 
-        public async Task<IEnumerable<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null)
+        public async Task<PaginatedResult<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null)
         {
             try
             {
+                var page = filters?.Page ?? 1;
+                var pageSize = filters?.PageSize ?? 10;
+
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.OrderReports.Where(r => r.ResolvedBy == null))
                     .ThenInclude(or => or.ReportedByNavigation)
@@ -759,9 +869,15 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var orders = await queryableOrders.OrderByDescending(o => o.ReportedOn).ToListAsync();
-                var result = orders.AsGetReportedOrdersModel();
-                return result;
+                var totalCount = await queryableOrders.CountAsync();
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.ReportedOn)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var items = orders.AsGetReportedOrdersModel();
+                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
             }
             catch (Exception)
             {
@@ -769,22 +885,67 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             }
         }
 
-        public async Task<IEnumerable<GetOrdersModel>> GetSentForPrintingAsync(OrderFiltersModel? filters = null)
+        public async Task<PaginatedResult<GetOrdersModel>> GetSentForPrintingAsync(OrderFiltersModel? filters = null)
         {
             try
             {
+                var page = filters?.Page ?? 1;
+                var pageSize = filters?.PageSize ?? 10;
+
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.Artist)
                     .Include(o => o.Checker)
                     .Include(o => o.UserGroup)
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
                     .Where(o => o.CustomerStatus == OrderStatuses.Accepted
                         && o.SentForPrintingOn != null);
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var orders = await queryableOrders.OrderByDescending(o => o.SentForPrintingOn).ToListAsync();
-                var result = orders.AsGetCompletedOrdersModel();
-                return result;
+                var totalCount = await queryableOrders.CountAsync();
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.SentForPrintingOn)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var items = orders.AsGetCompletedOrdersModel();
+                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public async Task<PaginatedResult<GetOrdersModel>> GetAllAsync(OrderFiltersModel? filters = null)
+        {
+            try
+            {
+                var page = filters?.Page ?? 1;
+                var pageSize = filters?.PageSize ?? 10;
+
+                var queryableOrders = dbContext.Orders
+                    .Include(o => o.Artist)
+                    .Include(o => o.Checker)
+                    .Include(o => o.UserGroup)
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
+                    .Include(o => o.OrderReports.Where(r => r.ResolvedBy == null))
+                    .ThenInclude(or => or.ReportedByNavigation)
+                    .AsQueryable();
+
+                queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
+
+                var totalCount = await queryableOrders.CountAsync();
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.Priority)
+                    .ThenByDescending(o => o.CreatedOn)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var items = orders.AsGetOrdersModel();
+                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
             }
             catch (Exception)
             {
@@ -952,35 +1113,18 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     .Where(od => od.OrderId == changeRequestOrderId)
                     .ToListAsync();
 
-  
-                for(int i = 0; i < changeRequestOrderDesigns.Count; i++) 
+
+                for(int i = 0; i < changeRequestOrderDesigns.Count; i++)
                 {
                     changeRequestOrderDesigns[i].OrderId = order.Id;
                 }
-                
-
-                var invoiceOrders = await dbContext.InvoiceSectionOrders
-                    .Include(o => o.InvoiceSection)
-                    .ThenInclude(o => o.Invoice)
-                    .Where(o => o.OrderId == changeRequestOrderId).ToListAsync();
-
-                foreach (var invoiceOrder in invoiceOrders)
-                {
-                    var phTimeOffset = 8;
-                    var invoiceSection = invoiceOrder.InvoiceSection;
-                    var invoice = invoiceSection.Invoice;
-
-                    if (DateTime.UtcNow.AddHours(phTimeOffset) < invoice.EndDate)
-                    {
-                        invoice.Amount -= invoiceSection.Rate;
-                        invoiceSection.Amount -= invoiceSection.Rate;
-                        invoiceSection.Quantity--;
-
-                        dbContext.InvoiceSectionOrders.Remove(invoiceOrder);
-                    }
-                }
 
                 await dbContext.SaveChangesAsync();
+
+                // Note: We intentionally do NOT remove invoice entries here.
+                // CR orders are invoiced when the checker approves them, and that
+                // payment should remain even if the order becomes a redraw.
+                // The artist did the work and got approved, so they should be paid.
 
                 await DeleteAsync(changeRequestOrderId);
             }
@@ -1136,6 +1280,16 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             var checkerSectionName = "Quality Control";
             await RecordInvoice(checkerInvoice, order.CheckerId.Value, checkerSectionName, rates.QualityControlRate, startDate, endDate, order.Id, order.OrderNumber);
 
+            // record author invoice (if author is assigned)
+            if (order.AuthorId is not null)
+            {
+                var authorInvoice = await dbContext.Invoices
+                    .Include(i => i.InvoiceSections)
+                    .SingleOrDefaultAsync(i => i.StartDate == startDate && i.UserId == order.AuthorId);
+                var authorSectionName = "Concept Author";
+                await RecordInvoice(authorInvoice, order.AuthorId.Value, authorSectionName, rates.ConceptAuthorRate, startDate, endDate, order.Id, order.OrderNumber);
+            }
+
             await dbContext.SaveChangesAsync();
         }
 
@@ -1251,6 +1405,85 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             var blob = container.GetBlobClient(name);
             var result = blob.GenerateSasUri(BlobSasPermissions.Read, expiresOn).ToString();
             return result;
+        }
+
+        public async Task<IEnumerable<GetOrdersModel>> SearchAsync(string orderNumber)
+        {
+            try
+            {
+                var queryableOrders = dbContext.Orders
+                    .Include(o => o.Artist)
+                    .Include(o => o.Checker)
+                    .Include(o => o.UserGroup)
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
+                    .Where(o => o.OrderNumber.Contains(orderNumber));
+
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.CreatedOn)
+                    .Take(20)
+                    .ToListAsync();
+
+                var result = orders.AsGetOrdersModel();
+                return result;
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public async Task<int> CleanupOldOrdersAsync(int olderThanDays = 30)
+        {
+            try
+            {
+                var cutoffDate = DateTime.UtcNow.AddDays(-olderThanDays);
+
+                // Find orders that are in "sent for printing" status and older than cutoff date
+                var orderIds = await dbContext.Orders
+                    .Where(o => o.CustomerStatus == OrderStatuses.Accepted
+                        && o.SentForPrintingOn != null
+                        && o.SentForPrintingOn < cutoffDate)
+                    .Select(o => o.Id)
+                    .ToListAsync();
+
+                if (orderIds.Count == 0) return 0;
+
+                // Delete related records first (due to foreign key constraints)
+                await dbContext.OrderDesignComments
+                    .Where(odc => orderIds.Contains(odc.OrderDesign.OrderId))
+                    .ExecuteDeleteAsync();
+
+                await dbContext.OrderDesigns
+                    .Where(od => orderIds.Contains(od.OrderId))
+                    .ExecuteDeleteAsync();
+
+                await dbContext.OrderImageReferences
+                    .Where(oir => orderIds.Contains(oir.OrderId))
+                    .ExecuteDeleteAsync();
+
+                await dbContext.OrderReports
+                    .Where(or => orderIds.Contains(or.OrderId))
+                    .ExecuteDeleteAsync();
+
+                await dbContext.OrderStatusHistories
+                    .Where(osh => orderIds.Contains(osh.OrderId))
+                    .ExecuteDeleteAsync();
+
+                await dbContext.InvoiceSectionOrders
+                    .Where(iso => orderIds.Contains(iso.OrderId))
+                    .ExecuteDeleteAsync();
+
+                // Finally delete the orders
+                var deletedCount = await dbContext.Orders
+                    .Where(o => orderIds.Contains(o.Id))
+                    .ExecuteDeleteAsync();
+
+                return deletedCount;
+            }
+            catch (Exception)
+            {
+                throw;
+            }
         }
     }
 }

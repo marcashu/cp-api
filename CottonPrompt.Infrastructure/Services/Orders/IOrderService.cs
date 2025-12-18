@@ -8,15 +8,17 @@ namespace CottonPrompt.Infrastructure.Services.Orders
     {
         Task<IEnumerable<GetOrdersModel>> GetAsync(bool? priority, string? artistStatus, string? checkerStatus, string? customerStatus, Guid? artistId, Guid? checkerId, bool noArtist = false, bool noChecker = false);
 
-        Task<IEnumerable<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null);
+        Task<PaginatedResult<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null);
 
-        Task<IEnumerable<GetOrdersModel>> GetRejectedAsync(OrderFiltersModel? filters = null);
+        Task<PaginatedResult<GetOrdersModel>> GetRejectedAsync(OrderFiltersModel? filters = null);
 
-        Task<IEnumerable<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null);
+        Task<PaginatedResult<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null);
 
-        Task<IEnumerable<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null);
+        Task<PaginatedResult<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null);
 
-        Task<IEnumerable<GetOrdersModel>> GetSentForPrintingAsync(OrderFiltersModel? filters = null);
+        Task<PaginatedResult<GetOrdersModel>> GetSentForPrintingAsync(OrderFiltersModel? filters = null);
+
+        Task<PaginatedResult<GetOrdersModel>> GetAllAsync(OrderFiltersModel? filters = null);
 
         Task<IEnumerable<GetOrdersModel>> GetAvailableAsArtistAsync(Guid artistId, bool? priority, bool changeRequest = false);
 
@@ -36,7 +38,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
         Task SubmitDesignAsync(int id, string designName, string designContent);
 
-        Task ApproveAsync(int id);
+        Task ApproveAsync(int id, Guid? approvedBy = null, bool isAdminApproval = false);
 
         Task AcceptAsync(int id, Guid? userId);
 
@@ -55,5 +57,9 @@ namespace CottonPrompt.Infrastructure.Services.Orders
         Task RedrawAsync(Order order, int changeRequestOrderId);
 
         Task ToggleRedrawMarkAsync(int id);
+
+        Task<IEnumerable<GetOrdersModel>> SearchAsync(string orderNumber);
+
+        Task<int> CleanupOldOrdersAsync(int olderThanDays = 30);
     }
 }

@@ -21,7 +21,7 @@ namespace CottonPrompt.Api.Controllers
         }
 
         [HttpGet("ongoing")]
-        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetOngoingAsync([FromQuery] GetOngoingOrdersRequest request)
         {
             var result = await orderService.GetOngoingAsync(request.AsModel());
@@ -29,7 +29,7 @@ namespace CottonPrompt.Api.Controllers
         }
 
         [HttpGet("rejected")]
-        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetRejectedAsync([FromQuery] GetRejectedOrdersRequest request)
         {
             var result = await orderService.GetRejectedAsync(request.AsModel());
@@ -37,7 +37,7 @@ namespace CottonPrompt.Api.Controllers
         }
 
         [HttpGet("completed")]
-        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetCompletedAsync([FromQuery] GetCompletedOrdersRequest request)
         {
             var result = await orderService.GetCompletedAsync(request.AsModel());
@@ -45,7 +45,7 @@ namespace CottonPrompt.Api.Controllers
         }
 
         [HttpGet("reported")]
-        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetReportedAsync([FromQuery] GetReportedOrdersRequest request)
         {
             var result = await orderService.GetReportedAsync(request.AsModel());
@@ -53,10 +53,26 @@ namespace CottonPrompt.Api.Controllers
         }
 
         [HttpGet("sent-for-printing")]
-        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetSentForPrintingAsync([FromQuery] GetSentForPrintingOrdersRequest request)
         {
             var result = await orderService.GetSentForPrintingAsync(request.AsModel());
+            return Ok(result);
+        }
+
+        [HttpGet("all")]
+        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        public async Task<IActionResult> GetAllAsync([FromQuery] GetAllOrdersRequest request)
+        {
+            var result = await orderService.GetAllAsync(request.AsModel());
+            return Ok(result);
+        }
+
+        [HttpGet("search")]
+        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        public async Task<IActionResult> SearchAsync([FromQuery] string orderNumber)
+        {
+            var result = await orderService.SearchAsync(orderNumber);
             return Ok(result);
         }
 
@@ -135,9 +151,9 @@ namespace CottonPrompt.Api.Controllers
 
         [HttpPost("{id}/approve")]
         [ProducesResponseType((int)HttpStatusCode.NoContent)]
-        public async Task<IActionResult> ApproveAsync([FromRoute] int id)
+        public async Task<IActionResult> ApproveAsync([FromRoute] int id, [FromBody] ApproveRequest request)
         {
-            await orderService.ApproveAsync(id);
+            await orderService.ApproveAsync(id, request.ApprovedBy, request.IsAdminApproval);
             return NoContent();
         }
 
@@ -213,6 +229,14 @@ namespace CottonPrompt.Api.Controllers
         {
             await orderService.ToggleRedrawMarkAsync(id);
             return NoContent();
+        }
+
+        [HttpDelete("cleanup-old")]
+        [ProducesResponseType<int>((int)HttpStatusCode.OK)]
+        public async Task<IActionResult> CleanupOldOrdersAsync([FromQuery] int olderThanDays = 30)
+        {
+            var deletedCount = await orderService.CleanupOldOrdersAsync(olderThanDays);
+            return Ok(deletedCount);
         }
     }
 }
