@@ -10,7 +10,7 @@ namespace CottonPrompt.Infrastructure.Extensions
         {
             var phTimeOffset = 8;
             var status = DateTime.UtcNow.AddHours(phTimeOffset) > entity.EndDate ? InvoiceStatuses.Completed : InvoiceStatuses.Ongoing;
-            var result = new GetInvoicesModel(entity.Id, entity.StartDate, entity.EndDate, entity.User.Name, entity.Amount, status);
+            var result = new GetInvoicesModel(entity.Id, entity.StartDate, entity.EndDate, entity.User.Name, entity.User.PaymentLink, entity.Amount, status);
             return result;
         }
 

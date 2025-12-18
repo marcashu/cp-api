@@ -23,6 +23,8 @@
         int UserGroupId,
         string UserGroupName,
         bool? IsReportDesignSubmitted,
-        bool? IsReportRedraw
+        bool? IsReportRedraw,
+        bool IsCoolDown,
+        DateTime? UpdatedOn
     );
 }

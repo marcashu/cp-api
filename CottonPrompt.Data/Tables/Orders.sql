@@ -16,6 +16,7 @@
 	[CheckerStatus] NVARCHAR(50) NULL,
 	[OriginalOrderId] INT NULL CONSTRAINT FK_Orders_OriginalOrder REFERENCES [dbo].[Orders]([Id]),
 	[ChangeRequestOrderId] INT NULL CONSTRAINT FK_Orders_ChangeRequestOrder REFERENCES [dbo].[Orders]([Id]),
+	[IsCoolDown] BIT NOT NULL,
 	[CompletedOn] DATETIME2 NULL,
 	[AcceptedOn] DATETIME2 NULL,
 	[ChangeRequestedOn] DATETIME2 NULL,
@@ -24,5 +25,6 @@
     [CreatedBy] UNIQUEIDENTIFIER NOT NULL,
 	[CreatedOn] DATETIME2 NOT NULL CONSTRAINT DF_Orders_CreatedOn DEFAULT GETUTCDATE(),
     [UpdatedBy] UNIQUEIDENTIFIER NULL, 
-    [UpdatedOn] DATETIME2 NULL
+    [UpdatedOn] DATETIME2 NULL,
+	[updatedAt] DATETIME2 NULL
 )

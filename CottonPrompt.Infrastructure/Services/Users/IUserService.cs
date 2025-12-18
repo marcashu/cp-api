@@ -20,5 +20,7 @@ namespace CottonPrompt.Infrastructure.Services.Users
         Task<CanDoModel> CheckerHasWaitingForCustomerAsync(Guid id);
 
         Task<IEnumerable<GetUsersModel>> GetNotMemberOfGroupAsync(int userGroupId);
+
+        Task AddPaymentLinkAsync(Guid userId, String paymentLink);
     }
 }
