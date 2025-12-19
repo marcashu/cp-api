@@ -1486,34 +1486,54 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 if (orderIds.Count == 0) return 0;
 
+                // Also find any CR orders that reference these orders (via OriginalOrderId)
+                var crOrderIds = await dbContext.Orders
+                    .Where(o => o.OriginalOrderId != null && orderIds.Contains(o.OriginalOrderId.Value))
+                    .Select(o => o.Id)
+                    .ToListAsync();
+
+                // Combine all order IDs that need to be deleted
+                var allOrderIds = orderIds.Concat(crOrderIds).Distinct().ToList();
+
+                // Clear self-referential foreign keys first (ChangeRequestOrderId, OriginalOrderId)
+                await dbContext.Orders
+                    .Where(o => o.ChangeRequestOrderId != null && allOrderIds.Contains(o.ChangeRequestOrderId.Value))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(o => o.ChangeRequestOrderId, (int?)null));
+
+                await dbContext.Orders
+                    .Where(o => o.OriginalOrderId != null && allOrderIds.Contains(o.OriginalOrderId.Value))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(o => o.OriginalOrderId, (int?)null));
+
                 // Delete related records first (due to foreign key constraints)
                 await dbContext.OrderDesignComments
-                    .Where(odc => orderIds.Contains(odc.OrderDesign.OrderId))
+                    .Where(odc => allOrderIds.Contains(odc.OrderDesign.OrderId))
                     .ExecuteDeleteAsync();
 
                 await dbContext.OrderDesigns
-                    .Where(od => orderIds.Contains(od.OrderId))
+                    .Where(od => allOrderIds.Contains(od.OrderId))
                     .ExecuteDeleteAsync();
 
                 await dbContext.OrderImageReferences
-                    .Where(oir => orderIds.Contains(oir.OrderId))
+                    .Where(oir => allOrderIds.Contains(oir.OrderId))
                     .ExecuteDeleteAsync();
 
                 await dbContext.OrderReports
-                    .Where(or => orderIds.Contains(or.OrderId))
+                    .Where(or => allOrderIds.Contains(or.OrderId))
                     .ExecuteDeleteAsync();
 
                 await dbContext.OrderStatusHistories
-                    .Where(osh => orderIds.Contains(osh.OrderId))
+                    .Where(osh => allOrderIds.Contains(osh.OrderId))
                     .ExecuteDeleteAsync();
 
                 await dbContext.InvoiceSectionOrders
-                    .Where(iso => orderIds.Contains(iso.OrderId))
+                    .Where(iso => allOrderIds.Contains(iso.OrderId))
                     .ExecuteDeleteAsync();
 
                 // Finally delete the orders
                 var deletedCount = await dbContext.Orders
-                    .Where(o => orderIds.Contains(o.Id))
+                    .Where(o => allOrderIds.Contains(o.Id))
                     .ExecuteDeleteAsync();
 
                 return deletedCount;
