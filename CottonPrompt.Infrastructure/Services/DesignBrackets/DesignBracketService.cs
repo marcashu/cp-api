@@ -141,6 +141,10 @@ namespace CottonPrompt.Infrastructure.Services.DesignBrackets
         {
             try
             {
+                // Get the current bracket to check if it's the "Authors" bracket
+                var currentBracket = await dbContext.OrderDesignBrackets.FindAsync(id);
+                var isAuthorsBracket = currentBracket?.Name == "Authors" || name == "Authors";
+
                 await dbContext.OrderDesignBrackets
                     .Where(db => db.Id == id)
                     .ExecuteUpdateAsync(setters => setters
@@ -148,6 +152,17 @@ namespace CottonPrompt.Infrastructure.Services.DesignBrackets
                         .SetProperty(db => db.Value, value)
                         .SetProperty(db => db.UpdatedBy, userId)
                         .SetProperty(db => db.UpdatedOn, DateTime.UtcNow));
+
+                // Keep ConceptAuthorRate in sync with "Authors" design bracket
+                if (isAuthorsBracket)
+                {
+                    await dbContext.Settings
+                        .Where(s => true)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(s => s.ConceptAuthorRate, value)
+                            .SetProperty(s => s.UpdatedBy, userId)
+                            .SetProperty(s => s.UpdatedOn, DateTime.UtcNow));
+                }
             }
             catch (Exception)
             {
