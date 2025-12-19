@@ -21,7 +21,7 @@ namespace CottonPrompt.Api.Controllers
         }
 
         [HttpGet("ongoing")]
-        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetOngoingAsync([FromQuery] GetOngoingOrdersRequest request)
         {
             var result = await orderService.GetOngoingAsync(request.AsModel());
@@ -36,8 +36,16 @@ namespace CottonPrompt.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("rejected-filter-options")]
+        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        public async Task<IActionResult> GetRejectedFilterOptionsAsync()
+        {
+            var result = await orderService.GetRejectedFilterOptionsAsync();
+            return Ok(result);
+        }
+
         [HttpGet("completed")]
-        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetCompletedAsync([FromQuery] GetCompletedOrdersRequest request)
         {
             var result = await orderService.GetCompletedAsync(request.AsModel());
@@ -45,7 +53,7 @@ namespace CottonPrompt.Api.Controllers
         }
 
         [HttpGet("reported")]
-        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetReportedAsync([FromQuery] GetReportedOrdersRequest request)
         {
             var result = await orderService.GetReportedAsync(request.AsModel());
@@ -60,8 +68,16 @@ namespace CottonPrompt.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("sent-for-printing-filter-options")]
+        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        public async Task<IActionResult> GetSentForPrintingFilterOptionsAsync()
+        {
+            var result = await orderService.GetSentForPrintingFilterOptionsAsync();
+            return Ok(result);
+        }
+
         [HttpGet("all")]
-        [ProducesResponseType<PaginatedResult<GetOrdersModel>>((int)HttpStatusCode.OK)]
+        [ProducesResponseType<IEnumerable<GetOrdersModel>>((int)HttpStatusCode.OK)]
         public async Task<IActionResult> GetAllAsync([FromQuery] GetAllOrdersRequest request)
         {
             var result = await orderService.GetAllAsync(request.AsModel());

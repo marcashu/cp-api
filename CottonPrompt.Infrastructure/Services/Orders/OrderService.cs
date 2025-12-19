@@ -200,6 +200,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(o => o.CheckerId, checkerId)
                         .SetProperty(o => o.CheckerStatus, status)
+                        .SetProperty(o => o.CheckerRemovedOn, (DateTime?)null)
                         .SetProperty(o => o.UpdatedBy, checkerId)
                         .SetProperty(o => o.UpdatedOn, DateTime.UtcNow));
 
@@ -321,7 +322,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     queryableOrders = queryableOrders.Where(o => statuses.Contains(o.CustomerStatus));
                 }
 
-                var orders = await queryableOrders.OrderByDescending(o => o.Priority).ThenBy(o => o.CreatedOn).ToListAsync();
+                var orders = await queryableOrders.OrderByDescending(o => o.CreatedOn).ThenByDescending(o => o.Priority).ToListAsync();
                 var result = orders.AsGetOrdersModel();
                 return result;
             }
@@ -363,7 +364,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     queryableOrders = queryableOrders.Where (o => o.Priority == priority);
                 }
 
-                var orders = await queryableOrders.OrderByDescending(o => o.Priority).ThenBy(o => o.CreatedOn).ToListAsync();
+                var orders = await queryableOrders.OrderByDescending(o => o.CreatedOn).ThenByDescending(o => o.Priority).ToListAsync();
                 var result = orders.AsGetOrdersModel();
                 return result;
             }
@@ -397,7 +398,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     queryableOrders = queryableOrders.Where(o => o.UserGroupId != trainingGroupArtistsId);
                 }
 
-                var orders = await queryableOrders.OrderByDescending(o => o.Priority).ThenBy(o => o.CreatedOn).ToListAsync();
+                var orders = await queryableOrders.OrderByDescending(o => o.CreatedOn).ThenByDescending(o => o.Priority).ToListAsync();
                 var result = orders.AsGetOrdersModel();
                 return result;
             }
@@ -750,13 +751,10 @@ namespace CottonPrompt.Infrastructure.Services.Orders
         }
 
 
-        public async Task<PaginatedResult<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null)
+        public async Task<IEnumerable<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null)
         {
             try
             {
-                var page = filters?.Page ?? 1;
-                var pageSize = filters?.PageSize ?? 10;
-
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.Artist)
                     .Include(o => o.Checker)
@@ -769,16 +767,13 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var totalCount = await queryableOrders.CountAsync();
                 var orders = await queryableOrders
-                    .OrderByDescending(o => o.Priority)
-                    .ThenBy(o => o.CreatedOn)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
+                    .OrderByDescending(o => o.CreatedOn)
+                    .ThenByDescending(o => o.Priority)
                     .ToListAsync();
 
-                var items = orders.AsGetOrdersModel();
-                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
+                var result = orders.AsGetOrdersModel();
+                return result;
             }
             catch (Exception)
             {
@@ -786,13 +781,10 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             }
         }
 
-        public async Task<PaginatedResult<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null)
+        public async Task<IEnumerable<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null)
         {
             try
             {
-                var page = filters?.Page ?? 1;
-                var pageSize = filters?.PageSize ?? 10;
-
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.Artist)
                     .Include(o => o.Checker)
@@ -803,15 +795,13 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var totalCount = await queryableOrders.CountAsync();
                 var orders = await queryableOrders
                     .OrderByDescending(o => o.AcceptedOn)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
+                    .ThenByDescending(o => o.Priority)
                     .ToListAsync();
 
-                var items = orders.AsGetCompletedOrdersModel();
-                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
+                var result = orders.AsGetCompletedOrdersModel();
+                return result;
             }
             catch (Exception)
             {
@@ -841,6 +831,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                 var totalCount = await queryableOrders.CountAsync();
                 var orders = await queryableOrders
                     .OrderByDescending(o => o.ChangeRequestedOn)
+                    .ThenByDescending(o => o.Priority)
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
@@ -854,13 +845,38 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             }
         }
 
-        public async Task<PaginatedResult<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null)
+        public async Task<IEnumerable<GetOrdersModel>> GetRejectedFilterOptionsAsync()
         {
             try
             {
-                var page = filters?.Page ?? 1;
-                var pageSize = filters?.PageSize ?? 10;
+                var queryableOrders = dbContext.Orders
+                    .Include(o => o.Artist)
+                    .Include(o => o.Checker)
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
+                    .Include(o => o.UserGroup)
+                    .Where(o => o.ArtistStatus == OrderStatuses.Completed
+                    && o.CustomerStatus == OrderStatuses.ChangeRequested
+                    && o.OriginalOrderId == null
+                    && o.ChangeRequestOrder.CustomerStatus != OrderStatuses.Accepted);
 
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.ChangeRequestedOn)
+                    .ThenByDescending(o => o.Priority)
+                    .ToListAsync();
+
+                var result = orders.AsGetRejectedOrdersModel();
+                return result;
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public async Task<IEnumerable<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null)
+        {
+            try
+            {
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.OrderReports.Where(r => r.ResolvedBy == null))
                     .ThenInclude(or => or.ReportedByNavigation)
@@ -869,15 +885,13 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var totalCount = await queryableOrders.CountAsync();
                 var orders = await queryableOrders
                     .OrderByDescending(o => o.ReportedOn)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
+                    .ThenByDescending(o => o.Priority)
                     .ToListAsync();
 
-                var items = orders.AsGetReportedOrdersModel();
-                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
+                var result = orders.AsGetReportedOrdersModel();
+                return result;
             }
             catch (Exception)
             {
@@ -905,6 +919,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                 var totalCount = await queryableOrders.CountAsync();
                 var orders = await queryableOrders
                     .OrderByDescending(o => o.SentForPrintingOn)
+                    .ThenByDescending(o => o.Priority)
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
@@ -918,13 +933,36 @@ namespace CottonPrompt.Infrastructure.Services.Orders
             }
         }
 
-        public async Task<PaginatedResult<GetOrdersModel>> GetAllAsync(OrderFiltersModel? filters = null)
+        public async Task<IEnumerable<GetOrdersModel>> GetSentForPrintingFilterOptionsAsync()
         {
             try
             {
-                var page = filters?.Page ?? 1;
-                var pageSize = filters?.PageSize ?? 10;
+                var queryableOrders = dbContext.Orders
+                    .Include(o => o.Artist)
+                    .Include(o => o.Checker)
+                    .Include(o => o.UserGroup)
+                    .Include(o => o.ChangeRequestOrder).ThenInclude(cro => cro.Artist)
+                    .Where(o => o.CustomerStatus == OrderStatuses.Accepted
+                        && o.SentForPrintingOn != null);
 
+                var orders = await queryableOrders
+                    .OrderByDescending(o => o.SentForPrintingOn)
+                    .ThenByDescending(o => o.Priority)
+                    .ToListAsync();
+
+                var result = orders.AsGetSentForPrintingOrdersModel();
+                return result;
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public async Task<IEnumerable<GetOrdersModel>> GetAllAsync(OrderFiltersModel? filters = null)
+        {
+            try
+            {
                 var queryableOrders = dbContext.Orders
                     .Include(o => o.Artist)
                     .Include(o => o.Checker)
@@ -936,16 +974,13 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 queryableOrders = OrderHelper.FilterOrders(queryableOrders, filters);
 
-                var totalCount = await queryableOrders.CountAsync();
                 var orders = await queryableOrders
-                    .OrderByDescending(o => o.Priority)
-                    .ThenByDescending(o => o.CreatedOn)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
+                    .OrderByDescending(o => o.CreatedOn)
+                    .ThenByDescending(o => o.Priority)
                     .ToListAsync();
 
-                var items = orders.AsGetOrdersModel();
-                return new PaginatedResult<GetOrdersModel>(items, totalCount, page, pageSize);
+                var result = orders.AsGetOrdersModel();
+                return result;
             }
             catch (Exception)
             {
@@ -1061,6 +1096,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     order.CheckerId = report.CheckerId;
                     order.CheckerStatus = report.CheckerStatus;
                     order.CustomerStatus = report.CustomerStatus;
+                    order.CheckerRemovedOn = null;
                 }
                 else
                 {
@@ -1068,6 +1104,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
                     {
                         order.CheckerId = report.CheckerId;
                         order.CheckerStatus = OrderStatuses.Claimed;
+                        order.CheckerRemovedOn = null;
                     }
 
                     order.CreatedOn = DateTime.UtcNow;
@@ -1420,6 +1457,7 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
                 var orders = await queryableOrders
                     .OrderByDescending(o => o.CreatedOn)
+                    .ThenByDescending(o => o.Priority)
                     .Take(20)
                     .ToListAsync();
 

@@ -8,17 +8,21 @@ namespace CottonPrompt.Infrastructure.Services.Orders
     {
         Task<IEnumerable<GetOrdersModel>> GetAsync(bool? priority, string? artistStatus, string? checkerStatus, string? customerStatus, Guid? artistId, Guid? checkerId, bool noArtist = false, bool noChecker = false);
 
-        Task<PaginatedResult<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null);
+        Task<IEnumerable<GetOrdersModel>> GetOngoingAsync(OrderFiltersModel? filters = null);
 
         Task<PaginatedResult<GetOrdersModel>> GetRejectedAsync(OrderFiltersModel? filters = null);
 
-        Task<PaginatedResult<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null);
+        Task<IEnumerable<GetOrdersModel>> GetRejectedFilterOptionsAsync();
 
-        Task<PaginatedResult<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null);
+        Task<IEnumerable<GetOrdersModel>> GetCompletedAsync(OrderFiltersModel? filters = null);
+
+        Task<IEnumerable<GetOrdersModel>> GetReportedAsync(OrderFiltersModel? filters = null);
 
         Task<PaginatedResult<GetOrdersModel>> GetSentForPrintingAsync(OrderFiltersModel? filters = null);
 
-        Task<PaginatedResult<GetOrdersModel>> GetAllAsync(OrderFiltersModel? filters = null);
+        Task<IEnumerable<GetOrdersModel>> GetSentForPrintingFilterOptionsAsync();
+
+        Task<IEnumerable<GetOrdersModel>> GetAllAsync(OrderFiltersModel? filters = null);
 
         Task<IEnumerable<GetOrdersModel>> GetAvailableAsArtistAsync(Guid artistId, bool? priority, bool changeRequest = false);
 

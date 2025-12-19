@@ -33,6 +33,14 @@ namespace CottonPrompt.Infrastructure.Services.Settings
                         .SetProperty(r => r.ConceptAuthorRate, conceptAuthorRate)
                         .SetProperty(r => r.UpdatedBy, updatedBy)
                         .SetProperty(r => r.UpdatedOn, DateTime.UtcNow));
+
+                // Keep "Authors" design bracket in sync with ConceptAuthorRate
+                await dbContext.OrderDesignBrackets
+                    .Where(db => db.Name == "Authors")
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(db => db.Value, conceptAuthorRate)
+                        .SetProperty(db => db.UpdatedBy, updatedBy)
+                        .SetProperty(db => db.UpdatedOn, DateTime.UtcNow));
             }
             catch (Exception)
             {
