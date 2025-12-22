@@ -95,8 +95,12 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
             if (order.OriginalOrderId is null)
             {
-                // record artist invoice
-                await RecordInvoice(artistInvoice, order.ArtistId.Value, order.DesignBracket.Name, order.DesignBracket.Value, startDate, endDate, order.Id, order.OrderNumber);
+                // record artist invoice - for regular orders and REDRAW orders
+                // Load design bracket if not already loaded
+                var designBracket = order.DesignBracket ?? await dbContext.OrderDesignBrackets.FindAsync(order.DesignBracketId);
+                if (designBracket is null) return; // Cannot record invoice without design bracket
+
+                await RecordInvoice(artistInvoice, order.ArtistId.Value, designBracket.Name, designBracket.Value, startDate, endDate, order.Id, order.OrderNumber);
             }
             else
             {
@@ -1300,8 +1304,12 @@ namespace CottonPrompt.Infrastructure.Services.Orders
 
             if (order.OriginalOrderId is null)
             {
-                // record artist invoice
-                await RecordInvoice(artistInvoice, order.ArtistId.Value, order.DesignBracket.Name, order.DesignBracket.Value, startDate, endDate, order.Id, order.OrderNumber);
+                // record artist invoice - for regular orders and REDRAW orders
+                // Load design bracket if not already loaded
+                var designBracket = order.DesignBracket ?? await dbContext.OrderDesignBrackets.FindAsync(order.DesignBracketId);
+                if (designBracket is null) return; // Cannot record invoice without design bracket
+
+                await RecordInvoice(artistInvoice, order.ArtistId.Value, designBracket.Name, designBracket.Value, startDate, endDate, order.Id, order.OrderNumber);
             }
             else
             {

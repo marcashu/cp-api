@@ -46,7 +46,7 @@ namespace CottonPrompt.Infrastructure.Extensions
         {
             var currentDesign = ((entity.OriginalOrderId == null && designs.Any()) || (entity.OriginalOrderId != null && designs.Count() > 1)) ? designs.Last() : null;
             var previousDesigns = designs.Where(d => currentDesign == null || d.Id != currentDesign.Id);
-            var result = new GetOrderModel(entity.Id, entity.OrderNumber, entity.Priority, entity.Concept, entity.PrintColor.AsModel(), entity.DesignBracket.AsModel(), entity.OutputSize.AsModel(), entity.UserGroupId, entity.CustomerEmail, entity.OrderImageReferences.AsModel(), currentDesign, previousDesigns, entity.ArtistStatus, entity.CheckerStatus, entity.CustomerStatus, entity.ArtistId, entity.CheckerId, entity.CreatedBy, authorName, entity.UserGroup.Name, entity.OriginalOrderId.HasValue, entity.CheckerRemovedOn);
+            var result = new GetOrderModel(entity.Id, entity.OrderNumber, entity.Priority, entity.Concept, entity.PrintColor.AsModel(), entity.DesignBracket.AsModel(), entity.OutputSize.AsModel(), entity.UserGroupId, entity.CustomerEmail, entity.OrderImageReferences.AsModel(), currentDesign, previousDesigns, entity.ArtistStatus, entity.CheckerStatus, entity.CustomerStatus, entity.ArtistId, entity.CheckerId, entity.AuthorId, authorName, entity.UserGroup.Name, entity.OriginalOrderId.HasValue, entity.CheckerRemovedOn);
             return result;
         }
 
